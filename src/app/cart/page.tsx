@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { removeFromCart, updateQuantity, clearCart } from '@/store/cartSlice';
-import { mockDB } from '@/services/db';
+import { api } from '@/services/api';
 import { Trash2, ShoppingBag, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,7 +22,7 @@ export default function CartPage() {
         }
         setPaying(true)
         setTimeout(async () => {
-            const order = await mockDB.createOrder(user.id, cartItems, totalAmount)
+            const order = await api.createOrder(user.id, cartItems, totalAmount)
             dispatch(clearCart())
             setSuccessOrder(order)
             setPaying(false)

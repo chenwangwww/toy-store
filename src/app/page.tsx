@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { mockDB } from '@/services/db';
+import { api } from '@/services/api';
 import Link from 'next/link';
 import { Star, ShoppingCart, Sparkles, Filter } from 'lucide-react';
 import { useAppDispatch } from '@/store/hooks';
@@ -14,7 +14,7 @@ export default function HomePage() {
 
   const { data: toys = [], isLoading } = useQuery({
     queryKey: ['toys', category],
-    queryFn: () => mockDB.getToys(category),
+    queryFn: () => api.getToys(category),
   });
 
   const categories = [

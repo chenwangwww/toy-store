@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { mockDB } from '@/services/db';
+import { api } from '@/services/api'; // 改为你的真实 api 服务
 import { useAppDispatch } from '@/store/hooks';
 import { addToCart } from '@/store/cartSlice';
-import { Star, ShieldCheck, Truck, RotateCcw, ShoppingCart } from 'lucide-react';
-import Link from 'next/link';
+import { ShieldCheck, Truck, RotateCcw, ShoppingCart } from 'lucide-react';
 
-export default function ProductDetailPage() {
+// 1. 将原先使用 useParams 的核心内容抽离成内部组件
+function ProductDetailContent() {
   const { id } = useParams();
   const dispatch = useAppDispatch();
   const [qty, setQty] = useState(1);
@@ -17,7 +17,8 @@ export default function ProductDetailPage() {
 
   const { data: toy, isLoading } = useQuery({
     queryKey: ['toy', id],
-    queryFn: () => mockDB.getToyById(id as string),
+    queryFn: () => api.getToyById(id as string),
+    enabled: !!id,
   });
 
   if (isLoading) return <div className="text-center py-20 text-pink-500 font-bold">加载中...</div>;
@@ -45,36 +46,20 @@ export default function ProductDetailPage() {
             <div className="flex items-center gap-4 mb-6">
               <span className="text-3xl font-black text-pink-600">¥{toy.price}</span>
               {toy.originalPrice && <span className="text-gray-400 line-through">¥{toy.originalPrice}</span>}
-              <span className="text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg font-bold">已售 {toy.sales}+</span>
             </div>
             <p className="text-gray-600 leading-relaxed mb-8">{toy.description}</p>
-
-            <div className="grid grid-cols-3 gap-4 p-4 rounded-2xl bg-pink-50/50 border border-pink-100 mb-8 text-center text-xs font-medium text-gray-600">
-              <div className="flex flex-col items-center gap-1">
-                <ShieldCheck className="w-5 h-5 text-pink-600" />
-                <span>3C环保认证</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <Truck className="w-5 h-5 text-pink-600" />
-                <span>全场包邮极速达</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <RotateCcw className="w-5 h-5 text-pink-600" />
-                <span>7天无理由退换</span>
-              </div>
-            </div>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white">
-                <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-2 bg-gray-50 hover:bg-gray-100 font-bold">-</button>
+                <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-4 py-2 bg-gray-50 font-bold">-</button>
                 <span className="px-6 font-bold">{qty}</span>
-                <button onClick={() => setQty(qty + 1)} className="px-4 py-2 bg-gray-50 hover:bg-gray-100 font-bold">+</button>
+                <button onClick={() => setQty(qty + 1)} className="px-4 py-2 bg-gray-50 font-bold">+</button>
               </div>
               <button
                 onClick={handleAddToCart}
-                className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-white font-bold shadow-lg shadow-pink-500/25 hover:opacity-95 transition flex items-center justify-center gap-2"
+                className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-white font-bold shadow-lg shadow-pink-500/25 transition flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="w-5 h-5" />
                 {added ? '已成功加入购物车！' : '加入购物车'}
@@ -84,5 +69,14 @@ export default function ProductDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// 2. 页面主入口用 Suspense 包裹
+export default function ProductDetailPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-pink-500 font-bold">加载商品详情中...</div>}>
+      <ProductDetailContent />
+    </Suspense>
   );
 }

@@ -1,0 +1,61 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 用户表
+model User {
+  id        String   @id @default(uuid())
+  username  String
+  email     String   @unique
+  password  String   // 实际场景保存哈希加密密码
+  phone     String?
+  avatar    String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+}
+
+// 玩具商品表
+model Toy {
+  id            String      @id @default(uuid())
+  name          String
+  price         Float
+  originalPrice Float?
+  category      String
+  ageRange      String
+  rating        Float       @default(5.0)
+  sales         Int         @default(0)
+  image         String
+  description   String
+  stock         Int         @default(100)
+  orderItems    OrderItem[]
+  createdAt     DateTime    @default(now())
+}
+
+// 订单主表
+model Order {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  totalAmount Float
+  status      String      @default("PAID") // PAID, SHIPPED, COMPLETED, CANCELLED
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+}
+
+// 订单明细表
+model OrderItem {
+  id       String @id @default(uuid())
+  orderId  String
+  order    Order  @relation(fields: [orderId], references: [id])
+  toyId    String
+  toy      Toy    @relation(fields: [toyId], references: [id])
+  quantity Int
+  price    Float  // 下单时的单价
+}

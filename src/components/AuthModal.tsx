@@ -49,7 +49,7 @@ export default function AuthModal() {
                     <h2 className='text-2xl font-bold text-gray-800'>
                         {authModalMode === 'login' && '欢迎回到 Toyland'}
                         {authModalMode === 'register' && '加入童趣俱乐部'}
-                        {authModalMode === 'login' && '找回密码'}
+                        {authModalMode === 'forgot' && '找回密码'}
                     </h2>
                 </div>
 
