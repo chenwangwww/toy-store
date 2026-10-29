@@ -1,3 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Windows 上 pnpm 默认的 isolated 模式依赖软链，部分环境（无符号链接权限）会安装不完整，
+# 这里统一用 hoisted（依赖平铺到根 node_modules），兼容性最好。
+nodeLinker: hoisted
+
 allowBuilds:
   '@prisma/client': false
   '@prisma/engines': false

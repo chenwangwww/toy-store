@@ -2,36 +2,28 @@
   "name": "toy-store",
   "version": "0.1.0",
   "private": true,
+  "description": "Toyland Express 玩具商城 —— 后端 / C端 / 管理后台 三端分离的 monorepo",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "prisma:seed": "node --import tsx prisma/seed.ts"
+    "dev": "pnpm -r --parallel dev",
+    "dev:api": "pnpm --filter @toy-store/api dev",
+    "dev:web": "pnpm --filter @toy-store/web dev",
+    "dev:admin": "pnpm --filter @toy-store/admin dev",
+    "build": "pnpm -r build",
+    "build:api": "pnpm --filter @toy-store/api build",
+    "build:web": "pnpm --filter @toy-store/web build",
+    "build:admin": "pnpm --filter @toy-store/admin build",
+    "start:api": "pnpm --filter @toy-store/api start",
+    "start:web": "pnpm --filter @toy-store/web start",
+    "start:admin": "pnpm --filter @toy-store/admin start",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @toy-store/api prisma:generate",
+    "db:push": "pnpm --filter @toy-store/api prisma:push",
+    "db:migrate": "pnpm --filter @toy-store/api prisma:migrate",
+    "db:seed": "pnpm --filter @toy-store/api prisma:seed",
+    "db:studio": "pnpm --filter @toy-store/api prisma:studio"
   },
-  "dependencies": {
-    "@prisma/client": "^6.10.0",
-    "@reduxjs/toolkit": "^2.13.0",
-    "@tanstack/react-query": "^5.104.5",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.61.0",
-    "next": "16.4.3",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "react-redux": "^9.3.0",
-    "tailwind-merge": "^3.7.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.3",
-    "prisma": "6.10.0",
-    "tailwindcss": "^4",
-    "tsx": "^4.23.15",
-    "typescript": "^5"
-  },
-  "packageManager": "pnpm@12.5.1"
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=20"
+  }
 }
