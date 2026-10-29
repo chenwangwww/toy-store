@@ -1,15 +1,46 @@
 'use client'
 
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { ShoppingCart, User as UserIcon, MessageSquare, Sparkles, LogIn } from 'lucide-react';
-import { useAppSelector, useAppDispatch } from '@/store/hooks'; // 需配好 hooks 或直接用 react-redux
+import { usePathname } from "next/navigation" // 1. 引入 usePathname
+import { ShoppingCart, User as UserIcon, Sparkles, LogIn } from 'lucide-react';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setAuthModalOpen } from '@/store/authSlice';
 
 export default function Navbar() {
+    const pathname = usePathname(); // 获取当前路由路径
     const dispatch = useAppDispatch()
-    const { user, isAuthenticated } = useAppSelector((state) => state.auth)
+    
+    // 如果当前路径是以 /admin 开头，直接不渲染前台 Navbar
+    if (pathname && pathname.startsWith('/admin')) {
+        return null;
+    }
+
     const cartItems = useAppSelector((state) => state.cart.items)
     const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0)
+
+    const [clientUser, setClientUser] = useState<any>(null);
+    const [isClientAuthenticated, setIsClientAuthenticated] = useState(false);
+
+    useEffect(() => {
+        const storedUser = sessionStorage.getItem('client_user');
+        if (storedUser) {
+            try {
+                const parsedUser = JSON.parse(storedUser);
+                setClientUser(parsedUser);
+                setIsClientAuthenticated(true);
+            } catch (e) {
+                console.error("解析前台用户信息失败", e);
+            }
+        }
+    }, []);
+
+    const handleClientLogout = () => {
+        sessionStorage.removeItem('client_user');
+        setClientUser(null);
+        setIsClientAuthenticated(false);
+        window.location.reload();
+    };
 
     return (
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-pink-100 shadow-sm">
@@ -33,11 +64,20 @@ export default function Navbar() {
                         )}
                     </Link>
 
-                    {isAuthenticated ? (
-                        <Link href="/profile" className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-pink-50 hover:bg-pink-100 transition text-pink-700 font-medium text-sm">
-                            <img src={user?.avatar} alt="avatar" className="w-6 h-6 rounded-full bg-white" />
-                            <span>{user?.username}</span>
-                        </Link>
+                    {isClientAuthenticated ? (
+                        <div className="flex items-center gap-3">
+                            <Link href="/profile" className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-pink-50 hover:bg-pink-100 transition text-pink-700 font-medium text-sm">
+                                <img src={clientUser?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=default"} alt="avatar" className="w-6 h-6 rounded-full bg-white" />
+                                <span>{clientUser?.username}</span>
+                            </Link>
+                            <button
+                                onClick={handleClientLogout}
+                                className="text-xs text-gray-400 hover:text-red-500 transition"
+                                title="退出登录"
+                            >
+                                退出
+                            </button>
+                        </div>
                     ) : (
                         <button
                             onClick={() => dispatch(setAuthModalOpen(true))}

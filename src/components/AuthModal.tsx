@@ -24,15 +24,27 @@ export default function AuthModal() {
             return
         }
 
-        dispatch(setUser({
+        // 1. 组装当前登录/注册的用户对象
+        const currentUser = {
             id: 'USR-' + Math.floor(1000 + Math.random() * 9000),
             username: account.split('@')[0] || '童趣会员',
             email: account.includes('@') ? account : 'user@toyland.com',
             phone: '+971 50 987 6543',
             avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=' + account,
-        }))
+        };
+
+        // 2. 存入前台专属的 sessionStorage 键，供 Navbar 读取
+        sessionStorage.setItem('client_user', JSON.stringify(currentUser));
+
+        // 3. 同时也更新 Redux 状态
+        dispatch(setUser(currentUser))
+        
+        // 4. 关闭弹窗并清空提示
         dispatch(setAuthModalOpen(false))
         setMessage('')
+
+        // 5. 刷新页面，让 Navbar 瞬间渲染出用户的头像和昵称
+        window.location.reload();
     }
 
     return (

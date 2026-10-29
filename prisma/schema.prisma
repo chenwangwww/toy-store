@@ -17,6 +17,7 @@ model User {
   password  String   // 实际场景保存哈希加密密码
   phone     String?
   avatar    String?
+  isAdmin   Boolean  @default(false)
   orders    Order[]
   createdAt DateTime @default(now())
 }

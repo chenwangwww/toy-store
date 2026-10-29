@@ -1,25 +1,43 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function main() {
-    await prisma.orderItem.deleteMany()
-    await prisma.order.deleteMany()
-    await prisma.toy.deleteMany()
-    await prisma.user.deleteMany()
+  console.log('正在清理旧数据...');
+  
+  // 1. 先删依赖别人外键的表（子表）
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.toy.deleteMany();
+  
+  // 2. 最后删被依赖的表（父表：用户）
+  await prisma.user.deleteMany();
 
-    const testUser = await prisma.user.create({
-        data: {
-            id: 'USR-8888',
-            username: '童趣小达人',
-            email: 'parent@toyland.com',
-            password: '123456password', // 示例明文
-            phone: '+86 13800138000',
-            avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=toyland',
-        }
-    })
+  console.log('正在写入种子数据...');
 
-    await prisma.toy.createMany({
+  // 3. 创建唯一的固定管理员账号（绝对不能少，isAdmin 必须为 true）
+  await prisma.user.create({
+    data: {
+      username: '系统超级管理员',
+      email: 'admin@toyland.com',
+      password: 'admin_secure_password_123',
+      isAdmin: true, // 核心：管理员标记
+      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin',
+    },
+  });
+
+  // 4. 创建普通测试客户账号
+  await prisma.user.create({
+    data: {
+      username: '童趣小达人',
+      email: 'customer@toyland.com',
+      password: '123456password',
+      isAdmin: false,
+      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=customer',
+    },
+  });
+
+  await prisma.toy.createMany({
         data: [
             {
                 name: '智能编程机器狗',
@@ -71,11 +89,14 @@ async function main() {
             },
         ]
     })
+
 }
 
-main().catch((e)=>{
-    console.error(e)
-    process.exit(1)
-}).finally(async ()=>{
-    await prisma.$disconnect()
-})
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
