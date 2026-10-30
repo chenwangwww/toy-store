@@ -23,7 +23,7 @@ export default function CartPage() {
         }
         setPaying(true)
         setTimeout(async () => {
-            const order = await api.createOrder(user.id, cartItems, totalAmount)
+            const order = await api.createOrder(cartItems, totalAmount)
             dispatch(clearCart())
             setSuccessOrder(order)
             setPaying(false)

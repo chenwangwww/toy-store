@@ -1,5 +1,21 @@
 import type { Toy, ToyInput } from "@toy-store/shared";
 import { API_BASE_URL } from "@/lib/api-base";
+import { authFetch, clearTokens, getRefreshToken, saveTokens } from "@/lib/auth-client";
+
+/** 后台登录成功后的返回结构 */
+export interface AdminAuthResponse {
+  success: boolean;
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    isAdmin: boolean;
+  };
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+}
 
 async function parseResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   if (!response.ok) {
@@ -15,37 +31,35 @@ async function parseResponse<T>(response: Response, fallbackMessage: string): Pr
   return response.json() as Promise<T>;
 }
 
-/** 后台接口客户端：直连纯后端服务 */
+/** 后台接口客户端：直连纯后端服务，所有请求自动带 access token */
 export const adminApi = {
   getToys: async (): Promise<Toy[]> => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/toys`);
-    return parseResponse<Toy[]>(res, "获取失败");
+    const res = await authFetch('/api/admin/toys');
+    return parseResponse<Toy[]>(res, '获取失败');
   },
 
   createToy: async (data: ToyInput): Promise<Toy> => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/toys`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await authFetch('/api/admin/toys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return parseResponse<Toy>(res, "创建失败");
+    return parseResponse<Toy>(res, '创建失败');
   },
 
   updateToy: async (id: string, data: ToyInput): Promise<Toy> => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/toys/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
+    const res = await authFetch(`/api/admin/toys/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return parseResponse<Toy>(res, "更新失败");
+    return parseResponse<Toy>(res, '更新失败');
   },
 
   deleteToy: async (id: string): Promise<void> => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/toys/${id}`, {
-      method: "DELETE",
-    });
+    const res = await authFetch(`/api/admin/toys/${id}`, { method: 'DELETE' });
     if (!res.ok) {
-      let message = "删除失败";
+      let message = '删除失败';
       try {
         const data = await res.json();
         if (data?.error) message = data.error;
@@ -56,12 +70,30 @@ export const adminApi = {
     }
   },
 
-  login: async (email: string, password: string): Promise<{ success: boolean; user: unknown }> => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+  login: async (email: string, password: string): Promise<AdminAuthResponse> => {
+    const res = await authFetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    return parseResponse<{ success: boolean; user: unknown }>(res, "登录失败");
+    const data = await parseResponse<AdminAuthResponse>(res, '登录失败');
+    // token 落本地，后续请求由 authFetch 自动带上
+    saveTokens(data);
+    return data;
+  },
+
+  /** 退出登录：吊销服务端 refresh token + 清本地 */
+  logout: async (): Promise<void> => {
+    const refreshToken = getRefreshToken();
+    try {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+    } catch {
+      // 网络失败也照样清本地
+    }
+    clearTokens();
   },
 };

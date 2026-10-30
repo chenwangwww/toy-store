@@ -21,7 +21,7 @@ export default function ProfilePage() {
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["orders", user?.id],
-    queryFn: () => api.getOrders(user!.id),
+    queryFn: () => api.getOrders(),
     enabled: Boolean(user?.id),
   });
 
@@ -43,8 +43,8 @@ export default function ProfilePage() {
             </div>
           </div>
           <button
-            onClick={() => {
-              sessionStorage.removeItem("client_user");
+            onClick={async () => {
+              await api.logout();
               dispatch(logout());
               router.push("/");
             }}

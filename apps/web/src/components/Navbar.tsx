@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingCart, Sparkles, LogIn } from "lucide-react";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { setAuthModalOpen, logout } from "@/store/authSlice";
+import { api } from "@/services/api";
 
 export default function Navbar() {
   const dispatch = useAppDispatch();
@@ -14,11 +15,12 @@ export default function Navbar() {
   const cartItems = useAppSelector((state) => state.cart.items);
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
-  // 登录态统一由 Redux 维护，Providers 会在启动时从 sessionStorage 恢复
+  // 登录态统一由 Redux 维护，Providers 会在启动时用本地 token 向后端换回用户信息
   const { user, isAuthenticated } = useAppSelector((state) => state.auth);
 
-  const handleClientLogout = () => {
-    sessionStorage.removeItem("client_user");
+  const handleClientLogout = async () => {
+    // 先让服务端吊销 refresh token，再清本地状态
+    await api.logout();
     dispatch(logout());
     router.push("/");
   };

@@ -5,6 +5,8 @@ import { Provider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { store } from "@/store/store";
 import { setUser } from "@/store/authSlice";
+import { api } from "@/services/api";
+import { clearTokens, getAccessToken } from "@/lib/auth-client";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -16,15 +18,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
-  // 刷新页面后 Redux 状态会重置，这里从 sessionStorage 恢复登录态
+  // 刷新页面后 Redux 会重置，这里用本地 token 向后端换回用户信息
   useEffect(() => {
-    const raw = sessionStorage.getItem("client_user");
-    if (!raw) return;
-    try {
-      store.dispatch(setUser(JSON.parse(raw)));
-    } catch {
-      sessionStorage.removeItem("client_user");
-    }
+    if (!getAccessToken()) return;
+    api
+      .me()
+      .then((user) => store.dispatch(setUser(user)))
+      .catch(() => clearTokens());
   }, []);
 
   return (

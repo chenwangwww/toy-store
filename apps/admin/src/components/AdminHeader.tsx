@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Package, ShieldCheck } from "lucide-react";
+import { adminApi } from "@/services/adminApi";
 
 type AdminUser = { id?: string; username?: string; email?: string };
 
@@ -30,7 +31,9 @@ export default function AdminHeader() {
 
   if (isLoginPage) return null;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // 先让服务端吊销 refresh token，再清本地状态
+    await adminApi.logout();
     sessionStorage.removeItem("admin_user");
     setUser(null);
     router.replace("/admin/login");

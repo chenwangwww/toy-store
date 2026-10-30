@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { issueTokenPair } from '@/lib/auth';
+import { toPublicUser } from '@/lib/user';
 
 export async function POST(request: Request) {
   try {
@@ -12,14 +14,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '权限不足或账号密码错误' }, { status: 403 });
     }
 
+    const tokens = await issueTokenPair(user);
+
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        isAdmin: user.isAdmin,
-      },
+      user: toPublicUser(user),
+      ...tokens,
     });
   } catch (error) {
     console.error('[api/admin/login]', error);

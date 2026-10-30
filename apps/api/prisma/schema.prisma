@@ -19,6 +19,7 @@ model User {
   avatar    String?
   isAdmin   Boolean  @default(false)
   orders    Order[]
+  refreshTokens RefreshToken[]
   createdAt DateTime @default(now())
 }
 
@@ -59,4 +60,17 @@ model OrderItem {
   toy      Toy    @relation(fields: [toyId], references: [id])
   quantity Int
   price    Float  // 下单时的单价
+}
+
+// 刷新令牌表：一条记录 = 一个已签发的 refresh token
+// id 就是 JWT 里的 jti，退出登录 / 轮换时按 id 作废
+model RefreshToken {
+  id        String    @id              // = jti（uuid）
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?                  // 非空表示已作废
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

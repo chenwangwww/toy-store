@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { adminApi } from "@/services/adminApi"
+import { getAccessToken } from "@/lib/auth-client"
 import { Toy } from "@toy-store/shared"
 import { Plus, Edit, Trash2, Sparkles, X, } from "lucide-react"
 
@@ -29,11 +30,22 @@ export default function AdminToysPage() {
   })
 
   const fetchToys = async () => {
+    // 没有 access token 就不用发请求了，直接回登录页
+    if (!getAccessToken()) {
+      router.replace('/admin/login')
+      return
+    }
+
     try {
       const data = await adminApi.getToys()
       setToys(data)
     } catch (err) {
       console.error(err)
+      // 连刷新都失败说明登录态彻底失效了（authFetch 已清空本地 token）
+      if (!getAccessToken()) {
+        sessionStorage.removeItem('admin_user')
+        router.replace('/admin/login')
+      }
     } finally {
       setLoading(false)
     }
@@ -53,19 +65,30 @@ export default function AdminToysPage() {
 
   useEffect(() => {
     const adminData = sessionStorage.getItem('admin_user');
-    if (!adminData) {
-      alert('您尚未登录管理员后台，请先登录！');
-      router.push('/admin/login');
-      return
-    }
 
-    const user = JSON.parse(adminData)
-    if (!user.isAdmin) {
-      alert('权限拒绝：您不是管理员！');
+    // 没有本地 token 说明登录态已失效（或从未登录），直接回登录页
+    if (!adminData || !getAccessToken()) {
       sessionStorage.removeItem('admin_user');
-      router.push('/admin/login');
+      router.replace('/admin/login');
       return;
     }
+
+    let isAdmin = false
+    try {
+      isAdmin = Boolean(JSON.parse(adminData)?.isAdmin)
+    } catch {
+      // sessionStorage 被写坏了，当作未登录处理
+      sessionStorage.removeItem('admin_user');
+      router.replace('/admin/login');
+      return;
+    }
+
+    if (!isAdmin) {
+      sessionStorage.removeItem('admin_user');
+      router.replace('/admin/login');
+      return;
+    }
+
     // sessionStorage 只能在挂载后读取，这里同步回填一次权限状态
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAuthorized(true)

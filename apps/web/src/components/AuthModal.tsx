@@ -29,14 +29,13 @@ export default function AuthModal() {
     setLoading(true);
     setMessage("");
     try {
-      // 真实登录/注册：走纯后端 /api/auth
-      const user = await api.auth({
+      // 真实登录/注册：走纯后端 /api/auth，成功后 token 已在 api.auth 里存好
+      const { user } = await api.auth({
         action: authModalMode === "register" ? "register" : "login",
         email: account,
         password,
       });
 
-      sessionStorage.setItem("client_user", JSON.stringify(user));
       dispatch(setUser(user));
       dispatch(setAuthModalOpen(false));
       setPassword("");

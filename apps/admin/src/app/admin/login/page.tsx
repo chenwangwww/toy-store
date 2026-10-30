@@ -14,9 +14,11 @@ export default function AdminLoginPage() {
     const handleAdminLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         try {
+            setError('')
             // 直连纯后端服务的 /api/admin/login
             const data = await adminApi.login(email, password)
 
+            // token 已在 adminApi.login 里存好，这里只留一份展示用的用户信息
             sessionStorage.setItem('admin_user', JSON.stringify(data.user))
             router.push('/admin/toys')
         } catch (err) {

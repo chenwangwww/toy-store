@@ -1,7 +1,16 @@
-import type { AuthPayload, Order, Toy, User } from "@toy-store/shared";
-import { API_BASE_URL } from "@/lib/api-base";
+import type { AuthPayload, Order, Toy, User } from '@toy-store/shared';
+import { API_BASE_URL } from '@/lib/api-base';
+import { authFetch, clearTokens, getRefreshToken, saveTokens } from '@/lib/auth-client';
 
-/** 统一处理响应：失败时优先使用后端返回的 error 文案 */
+/** 登录 / 注册成功后的返回结构 */
+export interface AuthResponse {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+}
+
 async function parseResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   if (!response.ok) {
     let message = fallbackMessage;
@@ -17,41 +26,67 @@ async function parseResponse<T>(response: Response, fallbackMessage: string): Pr
 }
 
 export const api = {
+  // 公开接口：不需要 token
   getToys: async (category?: string): Promise<Toy[]> => {
-    const query = category && category !== "all" ? `?category=${encodeURIComponent(category)}` : "";
+    const query =
+      category && category !== 'all' ? `?category=${encodeURIComponent(category)}` : '';
     const res = await fetch(`${API_BASE_URL}/api/toys${query}`);
-    return parseResponse<Toy[]>(res, "获取商品失败");
+    return parseResponse<Toy[]>(res, '获取商品失败');
   },
 
   getToyById: async (id: string): Promise<Toy> => {
     const res = await fetch(`${API_BASE_URL}/api/toys/${id}`);
-    return parseResponse<Toy>(res, "获取详情失败");
+    return parseResponse<Toy>(res, '获取详情失败');
   },
 
+  // 需要登录的接口：全部走 authFetch
   createOrder: async (
-    userId: string,
     items: { toy: Toy; quantity: number }[],
     totalAmount: number,
   ): Promise<Order> => {
-    const res = await fetch(`${API_BASE_URL}/api/orders`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, items, totalAmount }),
+    const res = await authFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, totalAmount }),
     });
-    return parseResponse<Order>(res, "下单失败");
+    return parseResponse<Order>(res, '下单失败');
   },
 
-  getOrders: async (userId: string): Promise<Order[]> => {
-    const res = await fetch(`${API_BASE_URL}/api/orders?userId=${encodeURIComponent(userId)}`);
-    return parseResponse<Order[]>(res, "获取订单失败");
+  getOrders: async (): Promise<Order[]> => {
+    const res = await authFetch('/api/orders');
+    return parseResponse<Order[]>(res, '获取订单失败');
   },
 
-  auth: async (payload: AuthPayload): Promise<User> => {
+  // 认证
+  auth: async (payload: AuthPayload): Promise<AuthResponse> => {
     const res = await fetch(`${API_BASE_URL}/api/auth`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return parseResponse<User>(res, "认证失败");
+    const data = await parseResponse<AuthResponse>(res, '认证失败');
+    saveTokens(data);
+    return data;
+  },
+
+  /** 刷新页面后用本地 token 恢复登录态（access 过期会自动刷新） */
+  me: async (): Promise<User> => {
+    const res = await authFetch('/api/auth/me');
+    return parseResponse<User>(res, '获取用户信息失败');
+  },
+
+  /** 退出登录：吊销服务端 refresh token + 清本地 */
+  logout: async (): Promise<void> => {
+    const refreshToken = getRefreshToken();
+    try {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+    } catch {
+      // 网络失败也照样清本地，不影响用户退出
+    }
+    clearTokens();
   },
 };
