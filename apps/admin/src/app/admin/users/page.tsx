@@ -70,7 +70,6 @@ export default function AdminUsersPage() {
       return
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setError('')
 
@@ -90,6 +89,8 @@ export default function AdminUsersPage() {
   }, [page, keyword, status, router])
 
   useEffect(() => {
+    // 首屏 / 翻页 / 筛选变化时重新拉取，进入 loading 态需要同步 setState
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUsers()
   }, [fetchUsers])
 

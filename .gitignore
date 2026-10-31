@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local sqlite database files (keep prisma/dev.db tracked, ignore journals)
 *.db-journal
+
+# 接口自测时产生的临时快照（token、响应 json），不要提交
+.tmp-*/

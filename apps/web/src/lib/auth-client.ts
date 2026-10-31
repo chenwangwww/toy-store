@@ -24,14 +24,18 @@ export function clearTokens() {
 }
 
 /**
- * 登录态彻底失效时的回调。
- * 由 Providers 注册，用来把 Redux 里的用户信息也清掉——
- * 否则 localStorage 清了但界面还显示"已登录"，得手动刷新页面才正常。
+ * 登录态彻底失效时广播的事件名。
+ *
+ * 这里用 window 事件而不是模块级变量保存回调：Next dev 的 HMR 会重新加载本模块，
+ * 模块级变量会被重置成 null，而组件里的 addEventListener 监听器不会丢。
+ * 否则会出现「token 已经清掉、Redux 还认为登录着、界面永远卡在已登录」。
  */
-let authLostHandler: (() => void) | null = null;
+export const AUTH_LOST_EVENT = 'toyland:auth-lost';
 
-export function setAuthLostHandler(handler: (() => void) | null) {
-    authLostHandler = handler;
+function notifyAuthLost() {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(AUTH_LOST_EVENT));
+    }
 }
 
 /** 多个请求同时 401 时，只发一次刷新请求（单飞） */
@@ -48,7 +52,15 @@ export function refreshAccessToken(): Promise<string | null> {
 
 async function doRefresh(): Promise<string | null> {
     const refreshToken = getRefreshToken();
-    if (!refreshToken) return null;
+    if (!refreshToken) {
+        // 本地还有 access token 却没有 refresh token，说明状态已经不一致了。
+        // 直接清干净并通知 UI 登出，否则界面会卡在"已登录"再也回不去。
+        if (getAccessToken()) {
+            clearTokens();
+            notifyAuthLost();
+        }
+        return null;
+    }
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
@@ -59,7 +71,7 @@ async function doRefresh(): Promise<string | null> {
 
         if (!res.ok) {
             clearTokens();
-            authLostHandler?.();
+            notifyAuthLost();
             return null;
         }
 

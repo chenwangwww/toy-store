@@ -27,7 +27,7 @@ access token 是无状态的，有效期 15 分钟。如果只在登录时检查
 
 1. 封禁时 **删除该用户所有 RefreshToken 记录**，让他刷新也救不回来；
 2. 封禁接口返回 **401**（不是 403），正好复用前端 `authFetch` 已有的「401 → 刷新 → 刷新也失败 → 清 token → 登出」链路，前端请求代码一行都不用改；
-3. C 端加一个 **60 秒轮询 + 窗口聚焦时校验**，让"干坐着不动"的用户也能在一分钟内被踢下线。
+3. C 端加一个 **15 秒轮询 + 窗口聚焦 / 标签页切回时校验**，让"干坐着不动"的用户也能在十几秒内被踢下线。
 
 代价：每个需要登录的接口多一次 SQLite 查询。这个项目量级完全无感；将来上量了可以加 Redis 缓存或改成 tokenVersion 方案。
 
@@ -1072,39 +1072,41 @@ import { LogOut, Package, ShieldCheck, Users } from "lucide-react";
 1. `authFetch` 刷新失败时只清了 localStorage，**Redux 里的 `user` 还在**，Navbar 依旧显示"已登录"；
 2. 用户停在页面不动时不会发请求，感知不到自己已经被封。
 
-### 6.1 改 `apps/web/src/lib/auth-client.ts`（加登出通知）
+### 6.1 改 `apps/web/src/lib/auth-client.ts`（广播登出事件）
 
 在文件顶部 `clearTokens()` 之后追加：
 
 ```ts
 /**
- * 登录态彻底失效时的回调。
- * 由 Providers 注册，用来把 Redux 里的用户信息也清掉——
- * 否则 localStorage 清了但界面还显示"已登录"，得手动刷新页面才正常。
+ * 登录态彻底失效时广播的事件名。
+ *
+ * 这里用 window 事件而不是模块级变量保存回调：Next dev 的 HMR 会重新加载本模块，
+ * 模块级变量会被重置成 null，而组件里的 addEventListener 监听器不会丢。
+ * 否则会出现「token 已经清掉、Redux 还认为登录着、界面永远卡在已登录」。
  */
-let authLostHandler: (() => void) | null = null;
+export const AUTH_LOST_EVENT = 'toyland:auth-lost';
 
-export function setAuthLostHandler(handler: (() => void) | null) {
-  authLostHandler = handler;
+function notifyAuthLost() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_LOST_EVENT));
+  }
 }
 ```
 
-在 `doRefresh()` 里 `if (!res.ok)` 那个分支加上 `authLostHandler`：
-
-```ts
-    if (!res.ok) {
-      clearTokens();
-      authLostHandler?.();
-      return null;
-    }
-```
-
-改完 `doRefresh` 长这样：
+在 `doRefresh()` 里，两处失败分支都要广播（`refreshToken` 缺失 / 刷新被拒）：
 
 ```ts
 async function doRefresh(): Promise<string | null> {
   const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
+  if (!refreshToken) {
+    // 本地还有 access token 却没有 refresh token，说明状态已经不一致了。
+    // 直接清干净并通知 UI 登出，否则界面会卡在"已登录"再也回不去。
+    if (getAccessToken()) {
+      clearTokens();
+      notifyAuthLost();
+    }
+    return null;
+  }
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
@@ -1115,7 +1117,7 @@ async function doRefresh(): Promise<string | null> {
 
     if (!res.ok) {
       clearTokens();
-      authLostHandler?.();   // ← 新增：通知 UI 一起登出
+      notifyAuthLost();   // ← 封禁 / 被踢下线会走到这里
       return null;
     }
 
@@ -1128,7 +1130,7 @@ async function doRefresh(): Promise<string | null> {
 }
 ```
 
-> 只有「refresh token 也失效」才会触发回调。单纯 access token 过期会自动刷新，用户无感。
+> 只有「refresh token 也失效」才会广播。单纯 access token 过期会自动刷新，用户无感。
 
 ### 6.2 改 `apps/web/src/providers/Providers.tsx`
 
@@ -1136,25 +1138,32 @@ async function doRefresh(): Promise<string | null> {
 
 ```tsx
 import { logout, setUser } from "@/store/authSlice";
-import { clearTokens, getAccessToken, setAuthLostHandler } from "@/lib/auth-client";
+import { AUTH_LOST_EVENT, clearTokens, getAccessToken } from "@/lib/auth-client";
 ```
 
 **把原来那个恢复登录态的 `useEffect` 整段替换为：**
 
 ```tsx
-  // 1) 注册"登录态失效"回调：任何请求发现 token 救不回来，立刻清 Redux
+  // 1) 监听"登录态失效"事件：任何请求发现 token 救不回来，立刻清 Redux
   useEffect(() => {
-    setAuthLostHandler(() => store.dispatch(logout()));
-    return () => setAuthLostHandler(null);
+    const onAuthLost = () => store.dispatch(logout());
+    window.addEventListener(AUTH_LOST_EVENT, onAuthLost);
+    return () => window.removeEventListener(AUTH_LOST_EVENT, onAuthLost);
   }, []);
 
   // 2) 刷新页面后 Redux 会重置，用本地 token 换回用户信息；
-  //    同时每 60 秒 + 窗口聚焦时校验一次，被封禁后即使不操作也会自动登出
+  //    同时定时 + 窗口聚焦 + 标签页切回时校验一次，被封禁后能自动登出
   useEffect(() => {
     let cancelled = false;
 
     const check = () => {
-      if (!getAccessToken()) return;
+      const { isAuthenticated } = store.getState().auth;
+
+      // 注意：这里不能只判断 localStorage 里有没有 token。
+      // 一旦某次刷新失败把 token 清掉了、但 Redux 里 user 还在，
+      // 只判断 token 就会永远跳过校验，界面永久卡在"已登录"。
+      if (!getAccessToken() && !isAuthenticated) return;
+
       api
         .me()
         .then((user) => {
@@ -1168,14 +1177,22 @@ import { clearTokens, getAccessToken, setAuthLostHandler } from "@/lib/auth-clie
         });
     };
 
+    // 同一窗口内切换标签页不会触发 window 的 focus 事件，
+    // 必须靠 visibilitychange 才能做到"切回来就校验"
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+
     check();
-    const timer = setInterval(check, 60_000);
+    const timer = setInterval(check, 15_000);
     window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       cancelled = true;
       clearInterval(timer);
       window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 ```
@@ -1185,8 +1202,8 @@ import { clearTokens, getAccessToken, setAuthLostHandler } from "@/lib/auth-clie
 | 场景 | 表现 |
 | --- | --- |
 | 用户正在操作（下单、看订单） | 下一个请求立刻 401 → 刷新失败 → 清 token + 清 Redux → Navbar 变回「登录/注册」 |
-| 用户停在页面不动 | 最多 60 秒内轮询触发，自动登出 |
-| 切回浏览器标签页 | `focus` 事件立刻触发校验，马上登出 |
+| 用户停在页面不动 | 最多 15 秒内轮询触发，自动登出 |
+| 切回浏览器标签页 | `visibilitychange` 立刻触发校验，马上登出 |
 | 重新登录 | 被 `/api/auth` 的封禁校验挡住，提示「账号已被封禁：原因」 |
 
 ---
@@ -1239,7 +1256,7 @@ curl -X PATCH http://localhost:4000/api/admin/users/<UID>/ban \
 2. 点「详情」→ 弹窗显示订单数、累计消费、最近订单。
 3. 点「封禁」→ 填原因 → 确认 → 状态变红「已封禁」。
 4. **关键**：在 C 端已登录的标签页里，随便点个需要登录的页面（个人中心 / 下单）→ 顶部立刻变回「登录 / 注册」，不需要手动刷新。
-5. 停在首页不动，60 秒内（或切回标签页时）也会自动退出。
+5. 停在首页不动，15 秒内（或切回标签页时）也会自动退出。
 6. 用被封的账号登录 → 提示"账号已被封禁：xxx"。
 7. 解封后重新登录 → 一切正常。
 
@@ -1275,5 +1292,5 @@ curl -X PATCH http://localhost:4000/api/admin/users/<UID>/ban \
 | 新增 | `apps/admin/src/app/admin/users/page.tsx` |
 | 修改 | `apps/admin/src/components/AdminHeader.tsx`（导航） |
 | 修改 | `apps/web/src/providers/Providers.tsx`（注册失效回调 + 轮询校验） |
-| 修改 | `apps/web/src/lib/auth-client.ts`（新增 `setAuthLostHandler`） |
+| 修改 | `apps/web/src/lib/auth-client.ts`（广播 `AUTH_LOST_EVENT`） |
 | 不改 | `apps/api/src/app/api/auth/me/route.ts`（`requireUser` 已拦住） |

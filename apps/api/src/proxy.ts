@@ -11,6 +11,14 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 const DEFAULT_ORIGINS = ["http://localhost:3000", "http://localhost:3001"];
 
+/**
+ * 开发环境额外放行的私有网段来源。
+ * 手机 / 同事电脑通过局域网 IP 访问时，来源是 http://192.168.x.x:3000 这类地址，
+ * 没法预先写进白名单，所以开发环境按私有网段放行；生产环境仍然只认 CORS_ORIGINS。
+ */
+const PRIVATE_ORIGIN_PATTERN =
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(?::\d+)?$/;
+
 function getAllowedOrigins(): string[] {
   const fromEnv = (process.env.CORS_ORIGINS ?? "")
     .split(",")
@@ -20,9 +28,18 @@ function getAllowedOrigins(): string[] {
   return Array.from(new Set([...DEFAULT_ORIGINS, ...fromEnv]));
 }
 
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin) return false;
+  if (getAllowedOrigins().includes(origin)) return true;
+  if (process.env.NODE_ENV !== "production" && PRIVATE_ORIGIN_PATTERN.test(origin)) {
+    return true;
+  }
+  return false;
+}
+
 export function proxy(request: NextRequest) {
   const origin = request.headers.get("origin");
-  const isAllowed = Boolean(origin && getAllowedOrigins().includes(origin));
+  const isAllowed = isOriginAllowed(origin);
 
   // 预检请求：直接返回 204，不进入业务路由
   if (request.method === "OPTIONS") {
