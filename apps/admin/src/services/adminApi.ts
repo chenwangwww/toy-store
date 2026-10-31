@@ -1,4 +1,10 @@
-import type { Toy, ToyInput } from "@toy-store/shared";
+import type {
+  AdminUserDetail,
+  AdminUserListItem,
+  PaginatedResult,
+  Toy,
+  ToyInput,
+} from "@toy-store/shared";
 import { API_BASE_URL } from "@/lib/api-base";
 import { authFetch, clearTokens, getRefreshToken, saveTokens } from "@/lib/auth-client";
 
@@ -82,6 +88,39 @@ export const adminApi = {
     return data;
   },
 
+  getUsers: async (params: {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    status?: 'all' | 'active' | 'banned';
+  } = {}): Promise<PaginatedResult<AdminUserListItem>> => {
+    const qs = new URLSearchParams()
+    if (params.page) qs.set('page', String(params.page));
+    if (params.pageSize) qs.set('pageSize', String(params.pageSize));
+    if (params.keyword) qs.set('keyword', params.keyword);
+    if (params.status && params.status !== 'all') qs.set('status', params.status);
+
+    const res = await authFetch(`/api/admin/users?${qs.toString()}`);
+    return parseResponse<PaginatedResult<AdminUserListItem>>(res, '获取用户列表失败');
+  },
+
+  getUser: async (id: string): Promise<AdminUserDetail> => {
+    const res = await authFetch(`/api/admin/users/${id}`);
+    return parseResponse<AdminUserDetail>(res, '获取用户详情失败');
+  },
+
+  banUser: async (
+    id: string,
+    payload: { banned: boolean; reason?: string },
+  ): Promise<AdminUserListItem> => {
+    const res = await authFetch(`/api/admin/users/${id}/ban`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<AdminUserListItem>(res, '操作失败');
+  },
+  
   /** 退出登录：吊销服务端 refresh token + 清本地 */
   logout: async (): Promise<void> => {
     const refreshToken = getRefreshToken();

@@ -20,6 +20,8 @@ model User {
   isAdmin   Boolean  @default(false)
   orders    Order[]
   refreshTokens RefreshToken[]
+  bannedAt     DateTime?   // null 表示正常，非空表示封禁时间
+  bannedReason String?
   createdAt DateTime @default(now())
 }
 

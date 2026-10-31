@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Package, ShieldCheck } from "lucide-react";
+import { LogOut, Package, ShieldCheck, Users } from "lucide-react";
 import { adminApi } from "@/services/adminApi";
 
 type AdminUser = { id?: string; username?: string; email?: string };
@@ -42,12 +42,35 @@ export default function AdminHeader() {
   return (
     <header className="sticky top-0 z-40 bg-slate-900 text-white shadow">
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/admin/toys" className="flex items-center gap-2 font-bold">
-          <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-pink-500 to-amber-400 flex items-center justify-center">
-            <Package className="w-4 h-4" />
-          </span>
-          Toyland Admin
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link href="/admin/toys" className="flex items-center gap-2 font-bold">
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-pink-500 to-amber-400 flex items-center justify-center">
+              <Package className="w-4 h-4" />
+            </span>
+            Toyland Admin
+          </Link>
+
+          <nav className="flex items-center gap-1 text-sm">
+            <Link
+              href="/admin/toys"
+              className={`px-3 py-1.5 rounded-lg transition ${pathname?.startsWith('/admin/toys')
+                  ? 'bg-white/10 text-white'
+                  : 'text-slate-400 hover:text-white'
+                }`}
+            >
+              商品管理
+            </Link>
+            <Link
+              href="/admin/users"
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${pathname?.startsWith('/admin/users')
+                  ? 'bg-white/10 text-white'
+                  : 'text-slate-400 hover:text-white'
+                }`}
+            >
+              <Users className="w-4 h-4" /> 用户管理
+            </Link>
+          </nav>
+        </div>
 
         <div className="flex items-center gap-4 text-sm">
           {user?.username && (

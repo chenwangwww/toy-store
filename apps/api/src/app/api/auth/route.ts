@@ -37,6 +37,17 @@ export async function POST(request: Request) {
       if (!user || user.password !== password) {
         return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
       }
+      if (user.bannedAt) {
+        return NextResponse.json(
+          {
+            error: user.bannedReason
+              ? `账号已被封禁：${user.bannedReason}`
+              : '账号已被封禁，如有疑问请联系客服',
+            code: 'ACCOUNT_BANNED',
+          },
+          { status: 403 },
+        );
+      }
       if (user.isAdmin) {
         return NextResponse.json(
           { error: '该账号为管理员账号，请前往管理后台登录' },

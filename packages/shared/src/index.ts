@@ -66,3 +66,31 @@ export interface AuthPayload {
 
 /** 后台商品表单提交的字段 */
 export type ToyInput = Partial<Omit<Toy, 'id' | 'rating' | 'sales' | 'createdAt'>>;
+
+/** 后台用户列表项 */
+export interface AdminUserListItem {
+  id: string;
+  username: string;
+  email: string;
+  phone: string | null;
+  avatar: string | null;
+  isAdmin: boolean;
+  bannedAt: string | null;
+  bannedReason: string | null;
+  createdAt: string;
+  orderCount: number;
+}
+
+/** 后台用户详情：多累计消费和最近订单 */
+export interface AdminUserDetail extends AdminUserListItem {
+  totalSpent: number;
+  orders: Order[];
+}
+
+/** 通用分页返回 */
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}

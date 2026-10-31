@@ -47,6 +47,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // 被封禁的账号连刷新都不允许，顺手把残留的 refresh token 清干净
+    if (user.bannedAt) {
+      await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+      return NextResponse.json(
+        { error: '账号已被封禁', code: 'ACCOUNT_BANNED' },
+        { status: 401 },
+      );
+    }
+
     // 轮换：旧 refresh token 立即作废，换一对新的
     await prisma.refreshToken.update({
       where: { id: stored.id },
