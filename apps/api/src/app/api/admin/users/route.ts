@@ -13,7 +13,16 @@ export async function GET(request: Request) {
 
     const keyword = (searchParams.get('keyword') ?? '').trim()
     const status = searchParams.get('status') ?? 'all'
+
+    // 角色标签：默认只看客户，管理员单独一个标签页
+    const roleParam = searchParams.get('role')
+    const role: 'all' | 'customer' | 'admin' =
+        roleParam === 'admin' || roleParam === 'all' ? roleParam : 'customer'
+
     const where: Prisma.UserWhereInput = {}
+    // 角色是"硬过滤"，只作用在当前标签页内，和搜索/状态条件是 AND 关系
+    if (role === 'customer') where.isAdmin = false
+    if (role === 'admin') where.isAdmin = true
 
     if (keyword) {
         // SQLite 的 LIKE 对 ASCII 本身不区分大小写，这里直接 contains 即可
@@ -27,7 +36,7 @@ export async function GET(request: Request) {
     if (status === 'active') where.bannedAt = null;
 
     try {
-        const [total, rows] = await Promise.all([
+        const [total, rows, customerCount, adminCount] = await Promise.all([
             prisma.user.count({ where }),
             prisma.user.findMany({
                 where,
@@ -46,7 +55,10 @@ export async function GET(request: Request) {
                     createdAt: true,
                     _count: { select: { orders: true } },
                 }
-            })
+            }),
+            // 两类账号的总数：不受当前搜索/状态条件影响，专门给标签栏角标用
+            prisma.user.count({ where: { isAdmin: false } }),
+            prisma.user.count({ where: { isAdmin: true } }),
         ])
 
         return NextResponse.json({
@@ -54,6 +66,7 @@ export async function GET(request: Request) {
             total,
             page,
             pageSize,
+            counts: { customer: customerCount, admin: adminCount },
         })
     } catch (error) {
         console.error('[api/admin/users]', error);

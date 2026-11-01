@@ -4,7 +4,12 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { adminApi } from '@/services/adminApi'
 import { getAccessToken } from '@/lib/auth-client'
-import type { AdminUserDetail, AdminUserListItem, PaginatedResult } from '@toy-store/shared'
+import type {
+  AdminUserDetail,
+  AdminUserListItem,
+  AdminUserListResult,
+  AdminUserRole,
+} from '@toy-store/shared'
 import {
   Search,
   ShieldBan,
@@ -20,16 +25,25 @@ import {
 
 const PAGE_SIZE = 10
 
+/** 顶部标签栏：客户 / 后台管理员 */
+const ROLE_TABS: { key: AdminUserRole; label: string; icon: typeof Users }[] = [
+  { key: 'customer', label: '客户', icon: Users },
+  { key: 'admin', label: '后台管理员', icon: ShieldCheck },
+]
+
 export default function AdminUsersPage() {
   const router = useRouter()
   const [authorized, setAuthorized] = useState(false)
 
+  const [role, setRole] = useState<AdminUserRole>('customer')
   const [searchInput, setSearchInput] = useState('')
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState<'all' | 'active' | 'banned'>('all')
   const [page, setPage] = useState(1)
 
-  const [data, setData] = useState<PaginatedResult<AdminUserListItem> | null>(null)
+  const [data, setData] = useState<AdminUserListResult | null>(null)
+  // 标签栏角标用的两类账号总数，跟列表分开存，切标签时不会闪成 0
+  const [counts, setCounts] = useState<Record<AdminUserRole, number>>({ customer: 0, admin: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -74,8 +88,9 @@ export default function AdminUsersPage() {
     setError('')
 
     try {
-      const res = await adminApi.getUsers({ page, pageSize: PAGE_SIZE, keyword, status })
+      const res = await adminApi.getUsers({ page, pageSize: PAGE_SIZE, keyword, status, role })
       setData(res)
+      setCounts(res.counts)
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败')
       // 登录态彻底失效（authFetch 已清空本地 token）→ 回登录页
@@ -86,7 +101,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, keyword, status, router])
+  }, [page, keyword, status, role, router])
 
   useEffect(() => {
     // 首屏 / 翻页 / 筛选变化时重新拉取，进入 loading 态需要同步 setState
@@ -139,6 +154,13 @@ export default function AdminUsersPage() {
     setKeyword(searchInput.trim())
   }
 
+  /** 切标签页：回到第一页，搜索词和状态筛选保留（按标签页各自生效） */
+  const handleSwitchRole = (next: AdminUserRole) => {
+    if (next === role) return
+    setRole(next)
+    setPage(1)
+  }
+
   if (!authorized) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-bold text-pink-600">
@@ -147,18 +169,61 @@ export default function AdminUsersPage() {
     )
   }
 
+  const isAdminTab = role === 'admin'
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10">
+      {/* 顶部标签栏：客户 / 后台管理员 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="inline-flex items-center gap-1 p-1.5 rounded-2xl bg-white border border-pink-100 shadow-sm">
+          {ROLE_TABS.map((tab) => {
+            const active = role === tab.key
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleSwitchRole(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
+                  active
+                    ? 'bg-gradient-to-r from-pink-500 to-amber-500 text-white shadow'
+                    : 'text-gray-500 hover:bg-pink-50 hover:text-pink-600'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+                <span
+                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none ${
+                    active ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
+                  }`}
+                >
+                  {counts[tab.key]}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        <p className="text-xs text-gray-400">
+          {isAdminTab
+            ? '可登录管理后台的账号，管理员账号不可封禁'
+            : '商城的注册用户，封禁后立刻踢下线且无法再登录'}
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-bold mb-2">
-            <Users className="w-3.5 h-3.5" /> 会员管理
+            {isAdminTab ? <ShieldCheck className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
+            {isAdminTab ? '权限管理' : '会员管理'}
           </div>
-          <h1 className="text-3xl font-black text-gray-900">用户列表</h1>
+          <h1 className="text-3xl font-black text-gray-900">
+            {isAdminTab ? '管理员列表' : '用户列表'}
+          </h1>
           <p className="text-sm text-gray-400 mt-1">
-            共 {data?.total ?? 0} 位用户，封禁后该用户会立刻退出登录且无法再登录
+            共 {data?.total ?? 0} {isAdminTab ? '位管理员' : '位用户'}，
+            {isAdminTab ? '管理员账号不可封禁' : '封禁后该用户会立刻退出登录且无法再登录'}
           </p>
         </div>
 
@@ -201,7 +266,9 @@ export default function AdminUsersPage() {
         {loading ? (
           <div className="text-center py-20 text-pink-500 font-bold">加载中...</div>
         ) : !data || data.items.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">没有匹配的用户</div>
+          <div className="text-center py-20 text-gray-400">
+            {isAdminTab ? '没有匹配的管理员' : '没有匹配的用户'}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -209,7 +276,7 @@ export default function AdminUsersPage() {
                 <tr className="bg-pink-50/50 border-b border-pink-100 text-xs font-bold text-gray-600 uppercase">
                   <th className="p-4">用户</th>
                   <th className="p-4">注册时间</th>
-                  <th className="p-4">订单数</th>
+                  {!isAdminTab && <th className="p-4">订单数</th>}
                   <th className="p-4">状态</th>
                   <th className="p-4 text-right">操作</th>
                 </tr>
@@ -240,7 +307,7 @@ export default function AdminUsersPage() {
                     <td className="p-4 text-gray-600">
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="p-4 text-gray-600">{user.orderCount}</td>
+                    {!isAdminTab && <td className="p-4 text-gray-600">{user.orderCount}</td>}
                     <td className="p-4">
                       {user.bannedAt ? (
                         <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600">
@@ -259,17 +326,20 @@ export default function AdminUsersPage() {
                       >
                         详情
                       </button>
-                      <button
-                        onClick={() => handleToggleBan(user)}
-                        disabled={acting || user.isAdmin}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
-                          user.bannedAt
-                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                            : 'bg-red-50 text-red-600 hover:bg-red-100'
-                        }`}
-                      >
-                        {user.bannedAt ? '解封' : '封禁'}
-                      </button>
+                      {/* 管理员标签页不出现封禁入口：管理员账号一律不可封禁 */}
+                      {!isAdminTab && (
+                        <button
+                          onClick={() => handleToggleBan(user)}
+                          disabled={acting || user.isAdmin}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition disabled:opacity-40 ${
+                            user.bannedAt
+                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                              : 'bg-red-50 text-red-600 hover:bg-red-100'
+                          }`}
+                        >
+                          {user.bannedAt ? '解封' : '封禁'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

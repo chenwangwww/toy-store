@@ -1,7 +1,8 @@
 import type {
   AdminUserDetail,
   AdminUserListItem,
-  PaginatedResult,
+  AdminUserListResult,
+  AdminUserRole,
   Toy,
   ToyInput,
 } from "@toy-store/shared";
@@ -93,15 +94,17 @@ export const adminApi = {
     pageSize?: number;
     keyword?: string;
     status?: 'all' | 'active' | 'banned';
-  } = {}): Promise<PaginatedResult<AdminUserListItem>> => {
+    role?: AdminUserRole;
+  } = {}): Promise<AdminUserListResult> => {
     const qs = new URLSearchParams()
     if (params.page) qs.set('page', String(params.page));
     if (params.pageSize) qs.set('pageSize', String(params.pageSize));
     if (params.keyword) qs.set('keyword', params.keyword);
     if (params.status && params.status !== 'all') qs.set('status', params.status);
+    if (params.role) qs.set('role', params.role);
 
     const res = await authFetch(`/api/admin/users?${qs.toString()}`);
-    return parseResponse<PaginatedResult<AdminUserListItem>>(res, '获取用户列表失败');
+    return parseResponse<AdminUserListResult>(res, '获取用户列表失败');
   },
 
   getUser: async (id: string): Promise<AdminUserDetail> => {
@@ -120,7 +123,7 @@ export const adminApi = {
     });
     return parseResponse<AdminUserListItem>(res, '操作失败');
   },
-  
+
   /** 退出登录：吊销服务端 refresh token + 清本地 */
   logout: async (): Promise<void> => {
     const refreshToken = getRefreshToken();

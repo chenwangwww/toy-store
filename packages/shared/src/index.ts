@@ -94,3 +94,11 @@ export interface PaginatedResult<T> {
   page: number;
   pageSize: number;
 }
+
+/** 后台用户列表的角色分组：customer = 普通客户，admin = 后台管理员 */
+export type AdminUserRole = 'customer' | 'admin';
+
+/** 后台用户列表返回：额外带一份两类账号的总数，给顶部标签栏的角标用 */
+export interface AdminUserListResult extends PaginatedResult<AdminUserListItem> {
+  counts: Record<AdminUserRole, number>;
+}
