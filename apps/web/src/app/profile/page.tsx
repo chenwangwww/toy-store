@@ -42,6 +42,9 @@ export default function ProfilePage() {
     queryKey: ["orders", user?.id],
     queryFn: () => api.getOrders(),
     enabled: Boolean(user?.id),
+    // 全局 staleTime 是 5 分钟，但订单是"随时可能变"的数据（下单、发货、取消）。
+    // 这里单独设 0：每次进页面都重新拉一次，避免看到过期列表。
+    staleTime: 0,
   });
 
   if (!initialized) {

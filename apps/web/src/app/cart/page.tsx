@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { removeFromCart, updateQuantity, clearCart } from '@/store/cartSlice';
 import { api } from '@/services/api';
@@ -10,6 +11,7 @@ import Link from 'next/link';
 
 export default function CartPage() {
     const dispatch = useAppDispatch()
+    const queryClient = useQueryClient()
     const cartItems = useAppSelector((state) => state.cart.items)
     const user = useAppSelector((state) => state.auth.user)
     const [paying, setPaying] = useState(false)
@@ -30,6 +32,10 @@ export default function CartPage() {
             const order = await api.createOrder(cartItems, totalAmount)
             dispatch(clearCart())
             setSuccessOrder(order)
+            // 下单成功必须让订单列表缓存失效。
+            // QueryClient 挂在根 layout 上，跨路由不销毁，而全局 staleTime 是 5 分钟；
+            // 不失效的话回到个人中心会拿旧的缓存渲染，看起来像"新订单没进去"，要刷新才出现。
+            queryClient.invalidateQueries({ queryKey: ['orders'] })
         } catch (err) {
             // 不加 try/catch 的话，下单失败会让 paying 永远为 true，按钮卡死在「正在调起安全支付」
             setPayError(err instanceof Error ? err.message : '下单失败，请稍后重试')
