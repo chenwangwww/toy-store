@@ -41,7 +41,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local sqlite database files (keep prisma/dev.db tracked, ignore journals)
+# local sqlite database files (dev.db 含用户密码哈希，不入库)
+# 不带斜杠 = 匹配任意层级，这样 apps/api/prisma/dev.db 也能被忽略
+dev.db
+dev.db.bak-*
 *.db-journal
 
 # 接口自测时产生的临时快照（token、响应 json），不要提交
