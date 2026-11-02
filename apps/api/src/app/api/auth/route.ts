@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { issueTokenPair } from '@/lib/auth';
 import { toPublicUser } from '@/lib/user';
 import { verifyEmailCode } from '@/lib/email-code';
+import { hashPassword, isHashed, verifyPassword } from '@/lib/password';
 
 export async function POST(request: Request) {
   try {
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       const newUser = await prisma.user.create({
         data: {
           email: account,
-          password, // 生产环境请使用 bcrypt 加密
+          password: await hashPassword(String(password)), // 只存 bcrypt 哈希，明文永不落库
           username: username || account.split('@')[0],
           avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(account)}`,
           isAdmin: false,
@@ -52,7 +53,8 @@ export async function POST(request: Request) {
 
     if (action === 'login') {
       const user = await prisma.user.findUnique({ where: { email: account } });
-      if (!user || user.password !== password) {
+      // 账号不存在和密码错误返回同一句话，避免被用来枚举哪些邮箱已注册
+      if (!user || !(await verifyPassword(String(password), user.password))) {
         return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
       }
       if (user.bannedAt) {
@@ -71,6 +73,14 @@ export async function POST(request: Request) {
           { error: '该账号为管理员账号，请前往管理后台登录' },
           { status: 403 },
         );
+      }
+
+      // 老库里可能还留着明文密码，登录成功时顺手升级成哈希，跑一次就永久生效
+      if (!isHashed(user.password)) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { password: await hashPassword(String(password)) },
+        });
       }
 
       const tokens = await issueTokenPair(user);

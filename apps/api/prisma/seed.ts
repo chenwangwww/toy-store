@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+/** 和 src/lib/password.ts 保持一致的成本因子 */
+const SALT_ROUNDS = 10;
 
 async function main() {
   console.log('正在清理旧数据...');
@@ -20,7 +24,7 @@ async function main() {
     data: {
       username: '系统超级管理员',
       email: 'admin@toyland.com',
-      password: 'admin_secure_password_123',
+      password: await bcrypt.hash('admin_secure_password_123', SALT_ROUNDS),
       isAdmin: true, // 核心：管理员标记
       avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin',
     },
@@ -31,7 +35,7 @@ async function main() {
     data: {
       username: '童趣小达人',
       email: 'customer@toyland.com',
-      password: '123456password',
+      password: await bcrypt.hash('123456password', SALT_ROUNDS),
       isAdmin: false,
       avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=customer',
     },

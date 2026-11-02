@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Provider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { store } from "@/store/store";
-import { logout, setUser } from "@/store/authSlice";
+import { logout, setInitialized, setUser } from "@/store/authSlice";
 import { AUTH_LOST_EVENT, clearTokens, getAccessToken } from "@/lib/auth-client";
 import { api } from "@/services/api";
 
@@ -36,7 +36,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       // 注意：这里不能只判断 localStorage 里有没有 token。
       // 一旦某次刷新失败把 token 清掉了、但 Redux 里 user 还在，
       // 只判断 token 就会永远跳过校验，界面永久卡在"已登录"。
-      if (!getAccessToken() && !isAuthenticated) return;
+      if (!getAccessToken() && !isAuthenticated) {
+        // 本来就没登录，直接标记初始化完成，否则需要登录的页面会一直等
+        store.dispatch(setInitialized(true));
+        return;
+      }
 
       api
         .me()
@@ -48,6 +52,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           // me() 内部已尝试过刷新，走到这里说明登录态彻底没了
           clearTokens();
           store.dispatch(logout());
+        })
+        .finally(() => {
+          // 成功或失败都算"已恢复"，页面可以据此决定要不要跳登录
+          if (!cancelled) store.dispatch(setInitialized(true));
         });
     };
 

@@ -6,24 +6,51 @@ import { useQuery } from "@tanstack/react-query";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/authSlice";
 import { api } from "@/services/api";
-import type { Order } from "@toy-store/shared";
+import type { Order, OrderStatus } from "@toy-store/shared";
 import { Package, LogOut } from "lucide-react";
+
+/** 订单状态的中文展示，避免直接把 PAID 这种枚举值甩给用户 */
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  PENDING: "待支付",
+  PAID: "已支付",
+  SHIPPED: "已发货",
+  COMPLETED: "已完成",
+  CANCELLED: "已取消",
+};
+
+/** 不同状态配不同底色，扫一眼就知道哪些单还没走完 */
+const STATUS_STYLE: Record<OrderStatus, string> = {
+  PENDING: "bg-amber-100 text-amber-700",
+  PAID: "bg-emerald-100 text-emerald-700",
+  SHIPPED: "bg-sky-100 text-sky-700",
+  COMPLETED: "bg-gray-100 text-gray-600",
+  CANCELLED: "bg-red-100 text-red-600",
+};
 
 export default function ProfilePage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
-  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+  const { user, isAuthenticated, initialized } = useAppSelector((state) => state.auth);
 
-  // 未登录直接回首页（只做跳转，不改 state）
+  // 必须等首次登录态恢复完成再判断，否则刷新页面时 Redux 还是空的，
+  // 会在 api.me() 返回之前就被误判成未登录、直接踢回首页
   useEffect(() => {
-    if (!isAuthenticated) router.replace("/");
-  }, [isAuthenticated, router]);
+    if (initialized && !isAuthenticated) router.replace("/");
+  }, [initialized, isAuthenticated, router]);
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["orders", user?.id],
     queryFn: () => api.getOrders(),
     enabled: Boolean(user?.id),
   });
+
+  if (!initialized) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-sm text-gray-400">
+        正在恢复登录状态...
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !user) return null;
 
@@ -65,28 +92,70 @@ export default function ProfilePage() {
               <p className="text-gray-400 text-sm py-8 text-center">暂无历史订单</p>
             ) : (
               <div className="space-y-4">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="p-4 rounded-2xl border border-pink-50 bg-pink-50/20 flex flex-col sm:flex-row justify-between gap-4"
-                  >
-                    <div>
-                      <span className="text-xs font-bold text-pink-600 bg-pink-100 px-2.5 py-1 rounded-full">
-                        {order.status}
-                      </span>
-                      <p className="text-xs text-gray-400 mt-2">订单号：{order.id}</p>
-                      <p className="text-xs text-gray-400">
-                        下单时间：{new Date(order.createdAt).toLocaleString()}
-                      </p>
+                {orders.map((order) => {
+                  const totalQuantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="rounded-2xl border border-pink-50 bg-pink-50/20 overflow-hidden"
+                    >
+                      {/* 订单头：状态、单号、时间、总额 */}
+                      <div className="p-4 flex flex-col sm:flex-row justify-between gap-4">
+                        <div>
+                          <span
+                            className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                              STATUS_STYLE[order.status] ?? "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {STATUS_LABEL[order.status] ?? order.status}
+                          </span>
+                          <p className="text-xs text-gray-400 mt-2">订单号：{order.id}</p>
+                          <p className="text-xs text-gray-400">
+                            下单时间：{new Date(order.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="sm:text-right">
+                          <span className="text-lg font-black text-gray-900">¥{order.totalAmount}</span>
+                          <p className="text-xs text-gray-500 mt-1">共 {totalQuantity} 件商品</p>
+                        </div>
+                      </div>
+
+                      {/* 商品明细：接口本来就 include 了 items.toy，之前没用上 */}
+                      <div className="border-t border-pink-100/70 divide-y divide-pink-100/70 bg-white/60">
+                        {order.items.map((item, index) => {
+                          const name = item.toy?.name ?? "商品已下架";
+                          const unitPrice = item.price ?? item.toy?.price ?? 0;
+
+                          return (
+                            <div
+                              key={item.id ?? `${item.toyId}-${index}`}
+                              className="px-4 py-3 flex items-center gap-3"
+                            >
+                              <img
+                                src={
+                                  item.toy?.image ||
+                                  "https://api.dicebear.com/7.x/bottts/svg?seed=toy"
+                                }
+                                alt={name}
+                                className="w-12 h-12 rounded-xl object-cover bg-white border border-pink-50 shrink-0"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-gray-800 truncate">{name}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  单价 ¥{unitPrice} × {item.quantity}
+                                </p>
+                              </div>
+                              <span className="text-sm font-bold text-gray-900 shrink-0">
+                                ¥{(unitPrice * item.quantity).toFixed(2)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-lg font-black text-gray-900">¥{order.totalAmount}</span>
-                      <p className="text-xs text-gray-500 mt-1">
-                        共 {order.items.reduce((s, i) => s + i.quantity, 0)} 件商品
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

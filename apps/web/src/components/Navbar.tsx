@@ -16,7 +16,7 @@ export default function Navbar() {
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   // 登录态统一由 Redux 维护，Providers 会在启动时用本地 token 向后端换回用户信息
-  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+  const { user, isAuthenticated, initialized } = useAppSelector((state) => state.auth);
 
   const handleClientLogout = async () => {
     // 先让服务端吊销 refresh token，再清本地状态
@@ -50,7 +50,10 @@ export default function Navbar() {
             )}
           </Link>
 
-          {isAuthenticated ? (
+          {!initialized ? (
+            // 登录态还在恢复中，先占位，避免"登录/注册"闪一下再变成头像
+            <div className="w-28 h-9 rounded-full bg-gray-100 animate-pulse" aria-hidden />
+          ) : isAuthenticated ? (
             <div className="flex items-center gap-3">
               <Link
                 href="/profile"

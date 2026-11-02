@@ -6,6 +6,8 @@ export type AuthModalMode = "login" | "register" | "forgot";
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+  /** 是否已完成首次登录态恢复（用本地 token 换回 user）。在此之前不能断定用户未登录 */
+  initialized: boolean;
   authModalOpen: boolean;
   authModalMode: AuthModalMode;
 }
@@ -13,6 +15,7 @@ interface AuthState {
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
+  initialized: false,
   authModalOpen: false,
   authModalMode: "login",
 };
@@ -28,6 +31,10 @@ export const authSlice = createSlice({
     setAuthModalOpen: (state, action: PayloadAction<boolean>) => {
       state.authModalOpen = action.payload;
     },
+    /** 首次登录态恢复结束（无论成功还是失败），之后才允许按 isAuthenticated 做跳转 */
+    setInitialized: (state, action: PayloadAction<boolean>) => {
+      state.initialized = action.payload;
+    },
     setAuthModalMode: (state, action: PayloadAction<AuthModalMode>) => {
       state.authModalMode = action.payload;
     },
@@ -38,5 +45,6 @@ export const authSlice = createSlice({
   },
 });
 
-export const { setUser, setAuthModalOpen, setAuthModalMode, logout } = authSlice.actions;
+export const { setUser, setAuthModalOpen, setAuthModalMode, setInitialized, logout } =
+  authSlice.actions;
 export default authSlice.reducer;

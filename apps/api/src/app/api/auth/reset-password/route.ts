@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyEmailCode } from '@/lib/email-code';
+import { hashPassword } from '@/lib/password';
 
 export async function POST(request: Request) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: String(newPassword) },
+      data: { password: await hashPassword(String(newPassword)) },
     });
 
     // 关键：密码变了，之前签发的 refresh token 全部作废

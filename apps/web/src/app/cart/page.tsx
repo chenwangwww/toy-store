@@ -14,6 +14,7 @@ export default function CartPage() {
     const user = useAppSelector((state) => state.auth.user)
     const [paying, setPaying] = useState(false)
     const [successOrder, setSuccessOrder] = useState<Order | null>(null);
+    const [payError, setPayError] = useState('')
 
     const totalAmount = cartItems.reduce((sum, item) => sum + item.toy.price * item.quantity, 0);
     const handleSimulatedPayment = async () => {
@@ -22,12 +23,19 @@ export default function CartPage() {
             return
         }
         setPaying(true)
-        setTimeout(async () => {
+        setPayError('')
+        try {
+            // 保留 1.5s 的「调起支付」动效
+            await new Promise((resolve) => setTimeout(resolve, 1500))
             const order = await api.createOrder(cartItems, totalAmount)
             dispatch(clearCart())
             setSuccessOrder(order)
+        } catch (err) {
+            // 不加 try/catch 的话，下单失败会让 paying 永远为 true，按钮卡死在「正在调起安全支付」
+            setPayError(err instanceof Error ? err.message : '下单失败，请稍后重试')
+        } finally {
             setPaying(false)
-        }, 1500);
+        }
     }
 
     if (successOrder) {
@@ -101,10 +109,16 @@ export default function CartPage() {
                         <span className="text-pink-600">¥{totalAmount}</span>
                     </div>
 
+                    {payError && (
+                        <p className="mb-4 px-3 py-2 rounded-xl bg-red-50 text-red-600 text-sm font-bold">
+                            {payError}
+                        </p>
+                    )}
+
                     <button
                         disabled={paying}
                         onClick={handleSimulatedPayment}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-white font-bold shadow-lg shadow-pink-500/25 hover:opacity-95 transition"
+                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-white font-bold shadow-lg shadow-pink-500/25 hover:opacity-95 transition disabled:opacity-60"
                     >
                         {paying ? '正在调起安全支付...' : '后端模拟支付 (一键下单)'}
                     </button>

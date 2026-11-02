@@ -12,10 +12,12 @@
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "hash-passwords": "tsx scripts/hash-legacy-passwords.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.10.0",
+    "bcryptjs": "^3.0.3",
     "jose": "^6.2.13",
     "next": "16.4.3",
     "nodemailer": "^10.3.1",
