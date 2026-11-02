@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Provider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { store } from "@/store/store";
+import { store, initPersistence } from "@/store/store";
 import { logout, setInitialized, setUser } from "@/store/authSlice";
 import { AUTH_LOST_EVENT, clearTokens, getAccessToken } from "@/lib/auth-client";
 import { api } from "@/services/api";
@@ -17,6 +17,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+
+  // 0) 启动购物车持久化。放在 effect 里而不是 store 模块顶层，
+  //    是为了让首帧渲染与服务端一致（都读到空购物车），避免 hydration mismatch
+  useEffect(() => {
+    initPersistence();
+  }, []);
 
   // 1) 监听"登录态失效"事件：任何请求发现 token 救不回来，立刻清 Redux
   useEffect(() => {

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/authSlice";
 import { api } from "@/services/api";
+import { useHydrated } from "@/lib/use-hydrated";
 import type { Order, OrderStatus } from "@toy-store/shared";
 import { Package, LogOut } from "lucide-react";
 
@@ -31,6 +32,9 @@ export default function ProfilePage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const { user, isAuthenticated, initialized } = useAppSelector((state) => state.auth);
+  // 服务端渲染的一定是占位态；客户端页面边界水合时也必须渲染同样的占位态，
+  // 否则会撞上"服务端有 div、客户端是 null"的 hydration mismatch
+  const hydrated = useHydrated();
 
   // 必须等首次登录态恢复完成再判断，否则刷新页面时 Redux 还是空的，
   // 会在 api.me() 返回之前就被误判成未登录、直接踢回首页
@@ -47,7 +51,7 @@ export default function ProfilePage() {
     staleTime: 0,
   });
 
-  if (!initialized) {
+  if (!hydrated || !initialized) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center text-sm text-gray-400">
         正在恢复登录状态...
