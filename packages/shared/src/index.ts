@@ -62,7 +62,10 @@ export interface AuthPayload {
   email: string;
   password?: string;
   username?: string;
+  code?: string;
 }
+
+export type EmailCodePurpose = 'register' | 'reset';
 
 /** 后台商品表单提交的字段 */
 export type ToyInput = Partial<Omit<Toy, 'id' | 'rating' | 'sales' | 'createdAt'>>;

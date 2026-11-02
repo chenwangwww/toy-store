@@ -1,4 +1,4 @@
-import type { AuthPayload, Order, Toy, User } from '@toy-store/shared';
+import type { AuthPayload, EmailCodePurpose, Order, Toy, User } from '@toy-store/shared';
 import { API_BASE_URL } from '@/lib/api-base';
 import { authFetch, clearTokens, getRefreshToken, saveTokens } from '@/lib/auth-client';
 
@@ -9,6 +9,14 @@ export interface AuthResponse {
   refreshToken: string;
   tokenType: 'Bearer';
   expiresIn: number;
+}
+
+/** 发验证码的返回结构（devCode 只会在本地没配 SMTP 时出现） */
+export interface SendCodeResponse {
+  success: boolean;
+  message: string;
+  cooldown: number;
+  devCode?: string;
 }
 
 async function parseResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -67,6 +75,33 @@ export const api = {
     const data = await parseResponse<AuthResponse>(res, '认证失败');
     saveTokens(data);
     return data;
+  },
+
+  /** 发送邮箱验证码：注册和找回密码共用，靠 purpose 区分 */
+  sendEmailCode: async (payload: {
+    email: string;
+    purpose: EmailCodePurpose;
+  }): Promise<SendCodeResponse> => {
+    const res = await fetch(`${API_BASE_URL}/api/auth/email-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<SendCodeResponse>(res, '验证码发送失败');
+  },
+
+  /** 用邮箱验证码重置密码：不需要登录态 */
+  resetPassword: async (payload: {
+    email: string;
+    code: string;
+    newPassword: string;
+  }): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse<{ success: boolean; message: string }>(res, '重置密码失败');
   },
 
   /** 刷新页面后用本地 token 恢复登录态（access 过期会自动刷新） */

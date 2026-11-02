@@ -1,46 +1,102 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { setAuthModalOpen, setAuthModalMode, setUser } from "@/store/authSlice";
 import { api } from "@/services/api";
-import { X, Sparkles } from "lucide-react";
+import { X, Sparkles, KeyRound } from "lucide-react";
+import SendCodeButton from "@/components/SendCodeButton";
+
+const CODE_PATTERN = /^\d{6}$/;
 
 export default function AuthModal() {
   const dispatch = useAppDispatch();
   const { authModalOpen, authModalMode } = useAppSelector((state) => state.auth);
+
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 在 登录 / 注册 / 找回密码 之间切换时，清掉上一次的输入和提示
+  useEffect(() => {
+    setPassword("");
+    setConfirmPassword("");
+    setCode("");
+    setMessage("");
+    setError("");
+  }, [authModalMode]);
 
   if (!authModalOpen) return null;
 
+  const isRegister = authModalMode === "register";
+  const isForgot = authModalMode === "forgot";
+  const needCode = isRegister || isForgot;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setMessage("");
 
-    // 找回密码仍是前端模拟，后续可对接后端邮件服务
-    if (authModalMode === "forgot") {
-      setMessage("重置密码验证码已发送至您的邮箱！");
-      setTimeout(() => dispatch(setAuthModalMode("login")), 2000);
+    const email = account.trim();
+
+    // ── 找回密码：邮箱 + 验证码 + 新密码，不需要旧密码 ──
+    if (isForgot) {
+      if (!CODE_PATTERN.test(code.trim())) {
+        setError("请输入 6 位邮箱验证码");
+        return;
+      }
+      if (password.length < 6) {
+        setError("新密码至少 6 位");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("两次输入的新密码不一致");
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await api.resetPassword({
+          email,
+          code: code.trim(),
+          newPassword: password,
+        });
+        setMessage(res.message || "密码已重置，请用新密码登录");
+        setTimeout(() => dispatch(setAuthModalMode("login")), 1500);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "重置密码失败");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── 注册 / 登录 ──
+    if (isRegister && !CODE_PATTERN.test(code.trim())) {
+      setError("请输入 6 位邮箱验证码");
       return;
     }
 
     setLoading(true);
-    setMessage("");
     try {
       // 真实登录/注册：走纯后端 /api/auth，成功后 token 已在 api.auth 里存好
       const { user } = await api.auth({
-        action: authModalMode === "register" ? "register" : "login",
-        email: account,
+        action: isRegister ? "register" : "login",
+        email,
         password,
+        ...(isRegister ? { code: code.trim() } : {}),
       });
 
       dispatch(setUser(user));
       dispatch(setAuthModalOpen(false));
       setPassword("");
+      setCode("");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "认证失败，请稍后重试");
+      setError(err instanceof Error ? err.message : "认证失败，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -55,19 +111,31 @@ export default function AuthModal() {
         >
           <X className="w-5 h-5" />
         </button>
-        <div className="flex items-center gap-2 mb-6">
+
+        <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-lg bg-pink-500 flex items-center justify-center text-white">
             <Sparkles className="w-5 h-5" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800">
             {authModalMode === "login" && "欢迎回到 Toyland"}
-            {authModalMode === "register" && "加入童趣俱乐部"}
-            {authModalMode === "forgot" && "找回密码"}
+            {isRegister && "加入童趣俱乐部"}
+            {isForgot && "找回密码"}
           </h2>
         </div>
 
+        <p className="text-xs text-gray-400 mb-6">
+          {authModalMode === "login" && "登录后即可下单、查看订单"}
+          {isRegister && "需要邮箱验证码，确保是你本人的邮箱"}
+          {isForgot && "验证码 5 分钟内有效，验证通过后直接设置新密码"}
+        </p>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium">
+            {error}
+          </div>
+        )}
         {message && (
-          <div className="mb-4 p-3 bg-pink-50 text-pink-600 rounded-xl text-sm font-medium">
+          <div className="mb-4 p-3 bg-emerald-50 text-emerald-600 rounded-xl text-sm font-medium">
             {message}
           </div>
         )}
@@ -85,15 +153,65 @@ export default function AuthModal() {
             />
           </div>
 
-          {authModalMode !== "forgot" && (
+          {needCode && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">登录密码</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">邮箱验证码</label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <KeyRound className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    inputMode="numeric"
+                    maxLength={6}
+                    required
+                    value={code}
+                    // 只留数字：粘贴带空格的验证码时不会因为空格校验失败
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="6 位数字"
+                    className="w-full pl-9 pr-3 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-800 tracking-widest"
+                  />
+                </div>
+                <SendCodeButton
+                  email={account}
+                  purpose={isRegister ? "register" : "reset"}
+                  disabled={loading}
+                  // 成功和失败分别走绿色 / 红色提示框，并且互斥（出现一个就清掉另一个）
+                  onMessage={(msg) => {
+                    setError("");
+                    setMessage(msg);
+                  }}
+                  onError={(msg) => {
+                    setMessage("");
+                    setError(msg);
+                  }}
+                  onDevCode={setCode}
+                />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isForgot ? "新密码" : isRegister ? "设置密码" : "登录密码"}
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={needCode ? "至少 6 位" : "请输入密码"}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-800"
+            />
+          </div>
+
+          {isForgot && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">确认新密码</label>
               <input
                 type="password"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入密码"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="再输入一次新密码"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-800"
               />
             </div>
@@ -108,9 +226,9 @@ export default function AuthModal() {
               ? "处理中..."
               : authModalMode === "login"
                 ? "立即登录"
-                : authModalMode === "register"
+                : isRegister
                   ? "确认注册"
-                  : "发送重置邮件"}
+                  : "重置密码"}
           </button>
         </form>
 

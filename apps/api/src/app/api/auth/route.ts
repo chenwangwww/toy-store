@@ -2,27 +2,45 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { issueTokenPair } from '@/lib/auth';
 import { toPublicUser } from '@/lib/user';
+import { verifyEmailCode } from '@/lib/email-code';
 
 export async function POST(request: Request) {
   try {
-    const { action, email, password, username } = await request.json();
+    const { action, email, password, username, code } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: '邮箱和密码不能为空' }, { status: 400 });
     }
 
+    // 统一去掉首尾空格：发码时存的是 trim 过的邮箱，这里不 trim 会对不上
+    const account = String(email).trim();
+
     if (action === 'register') {
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      // 注册必须带邮箱验证码
+      if (!code || typeof code !== 'string') {
+        return NextResponse.json({ error: '请输入邮箱验证码' }, { status: 400 });
+      }
+      if (String(password).length < 6) {
+        return NextResponse.json({ error: '密码至少 6 位' }, { status: 400 });
+      }
+
+      const existingUser = await prisma.user.findUnique({ where: { email: account } });
       if (existingUser) {
         return NextResponse.json({ error: '邮箱已被注册' }, { status: 400 });
       }
 
+      // 校验通过即作废，同一个码不能注册两次
+      const verified = await verifyEmailCode(account, 'register', code.trim());
+      if (!verified.ok) {
+        return NextResponse.json({ error: verified.error }, { status: 400 });
+      }
+
       const newUser = await prisma.user.create({
         data: {
-          email,
+          email: account,
           password, // 生产环境请使用 bcrypt 加密
-          username: username || email.split('@')[0],
-          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
+          username: username || account.split('@')[0],
+          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(account)}`,
           isAdmin: false,
         },
       });
@@ -33,7 +51,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'login') {
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await prisma.user.findUnique({ where: { email: account } });
       if (!user || user.password !== password) {
         return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
       }
