@@ -105,3 +105,40 @@ export type AdminUserRole = 'customer' | 'admin';
 export interface AdminUserListResult extends PaginatedResult<AdminUserListItem> {
   counts: Record<AdminUserRole, number>;
 }
+
+
+/** 后台订单列表里的商品行：只带展示需要的字段，不返回完整 Toy */
+export interface AdminOrderItem {
+  id: string;
+  toyId: string;
+  quantity: number;
+  price: number;
+  toy: {
+    id: string;
+    name: string;
+    image: string;
+  }
+}
+
+/** 后台订单列表项 */
+export interface AdminOrderListItem {
+  id: string;
+  userId: string;
+  totalAmount: number;
+  status: OrderStatus;
+  createdAt: string;
+  /** 商品总件数（所有明细 quantity 之和），列表里显示「共 N 件」 */
+  itemCount: number;
+  /** 下单用户：邮箱筛选和列表展示都要用 */
+  user: {
+    id: string;
+    username: string;
+    email: string;
+  };
+  items: AdminOrderItem[];
+}
+
+/** 后台订单列表返回：counts 是各状态的订单数，给状态筛选按钮的角标用 */
+export interface AdminOrderListResult extends PaginatedResult<AdminOrderListItem> {
+  counts: Record<OrderStatus | 'all', number>
+}

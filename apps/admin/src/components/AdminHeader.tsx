@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Package, ShieldCheck, Users } from "lucide-react";
+import { LogOut, Package, Receipt, ShieldCheck, Users } from "lucide-react";
 import { adminApi } from "@/services/adminApi";
 
 type AdminUser = { id?: string; username?: string; email?: string };
@@ -59,6 +59,15 @@ export default function AdminHeader() {
                 }`}
             >
               商品管理
+            </Link>
+            <Link
+              href="/admin/orders"
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${pathname?.startsWith('/admin/orders')
+                  ? 'bg-white/10 text-white'
+                  : 'text-slate-400 hover:text-white'
+                }`}
+            >
+              <Receipt className="w-4 h-4" /> 订单管理
             </Link>
             <Link
               href="/admin/users"

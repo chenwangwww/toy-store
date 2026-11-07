@@ -1,8 +1,11 @@
 import type {
+  AdminOrderListItem,
+  AdminOrderListResult,
   AdminUserDetail,
   AdminUserListItem,
   AdminUserListResult,
   AdminUserRole,
+  OrderStatus,
   Toy,
   ToyInput,
 } from "@toy-store/shared";
@@ -122,6 +125,33 @@ export const adminApi = {
       body: JSON.stringify(payload),
     });
     return parseResponse<AdminUserListItem>(res, '操作失败');
+  },
+
+  /** 订单列表：email 走模糊匹配，status 传 'all' 表示不筛选 */
+  getOrders: async (params: {
+    page?: number;
+    pageSize?: number;
+    email?: string;
+    status?: OrderStatus | 'all';
+  } = {}): Promise<AdminOrderListResult> => {
+    const qs = new URLSearchParams()
+    if (params.page) qs.set('page', String(params.page));
+    if (params.pageSize) qs.set('pageSize', String(params.pageSize));
+    if (params.email) qs.set('email', params.email);
+    if (params.status && params.status !== 'all') qs.set('status', params.status);
+
+    const res = await authFetch(`/api/admin/orders?${qs.toString()}`);
+    return parseResponse<AdminOrderListResult>(res, '获取订单列表失败');
+  },
+
+  /** 改订单状态：改成 CANCELLED / 从 CANCELLED 改回都会连带调整库存 */
+  updateOrderStatus: async (id: string, status: OrderStatus): Promise<AdminOrderListItem> => {
+    const res = await authFetch(`/api/admin/orders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    return parseResponse<AdminOrderListItem>(res, '更新订单状态失败');
   },
 
   /** 退出登录：吊销服务端 refresh token + 清本地 */
