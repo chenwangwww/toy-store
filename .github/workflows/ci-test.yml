@@ -25,6 +25,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Prisma Client 是「生成产物」，不提交到仓库。
+      # pnpm-workspace.yaml 里 allowBuilds 关掉了 @prisma/client 的 postinstall，
+      # 所以这里必须显式生成，否则 next build 的类型检查会报
+      # "Module '@prisma/client' has no exported member 'PrismaClient'" 等一连串错误。
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
       - name: Run Lint
         run: pnpm lint
 
