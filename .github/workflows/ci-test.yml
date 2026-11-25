@@ -1,0 +1,32 @@
+name: Next.js CI Test
+
+on:
+  # 允许在 GitHub 网页端手动点击按钮触发测试
+  workflow_dispatch:
+  # 推送代码到 master 分支时自动触发
+  push:
+    branches: [master]
+
+jobs:
+  ci-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Lint
+        run: pnpm lint
+
+      - name: Build Next.js
+        run: pnpm build
