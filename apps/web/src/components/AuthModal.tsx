@@ -1,8 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
-import { setAuthModalOpen, setAuthModalMode, setUser } from "@/store/authSlice";
+import {
+  setAuthModalOpen,
+  setAuthModalMode,
+  setUser,
+  type AuthModalMode,
+} from "@/store/authSlice";
 import { api } from "@/services/api";
 import { X, Sparkles, KeyRound } from "lucide-react";
 import SendCodeButton from "@/components/SendCodeButton";
@@ -21,14 +26,17 @@ export default function AuthModal() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 在 登录 / 注册 / 找回密码 之间切换时，清掉上一次的输入和提示
-  useEffect(() => {
+  // 在 登录 / 注册 / 找回密码 之间切换时，清掉上一次的输入和提示。
+  // 直接在切换动作里重置，而不是用 useEffect 监听 authModalMode——
+  // 在 effect 里同步 setState 会触发级联渲染，新版 react-hooks 规则会直接报 error。
+  const switchMode = (mode: AuthModalMode) => {
     setPassword("");
     setConfirmPassword("");
     setCode("");
     setMessage("");
     setError("");
-  }, [authModalMode]);
+    dispatch(setAuthModalMode(mode));
+  };
 
   if (!authModalOpen) return null;
 
@@ -66,7 +74,7 @@ export default function AuthModal() {
           newPassword: password,
         });
         setMessage(res.message || "密码已重置，请用新密码登录");
-        setTimeout(() => dispatch(setAuthModalMode("login")), 1500);
+        setTimeout(() => switchMode("login"), 1500);
       } catch (err) {
         setError(err instanceof Error ? err.message : "重置密码失败");
       } finally {
@@ -236,13 +244,13 @@ export default function AuthModal() {
           {authModalMode === "login" ? (
             <>
               <button
-                onClick={() => dispatch(setAuthModalMode("forgot"))}
+                onClick={() => switchMode("forgot")}
                 className="hover:text-pink-600"
               >
                 忘记密码？
               </button>
               <button
-                onClick={() => dispatch(setAuthModalMode("register"))}
+                onClick={() => switchMode("register")}
                 className="text-pink-600 font-semibold"
               >
                 注册新账号
@@ -250,7 +258,7 @@ export default function AuthModal() {
             </>
           ) : (
             <button
-              onClick={() => dispatch(setAuthModalMode("login"))}
+              onClick={() => switchMode("login")}
               className="text-pink-600 font-semibold mx-auto"
             >
               已有账号？返回登录
